@@ -15,6 +15,33 @@
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
     -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ub: {
+            blue: "#005BBB",
+            harriman: "#002F56",
+            white: "#FFFFFF",
+            gray: "#666666",
+            grayLight: "#E4E4E4",
+            accent: {
+              yellow: "#FFC72C",
+              teal: "#00A69C",
+              orange: "#E56A54",
+              sky: "#2F9FD0"
+            }
+          }
+        },
+        boxShadow: {
+          ub: "0 8px 24px rgba(0,0,0,0.06)"
+        }
+      }
+    }
+  }
+</script>
     <!--
       Notice the use of %PUBLIC_URL% in the tags above.
       It will be replaced with the URL of the `public` folder during the build.
