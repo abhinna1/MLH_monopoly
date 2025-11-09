@@ -1,6 +1,6 @@
 // components/CenterVictor.js
 import React, { useRef } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations, OrbitControls } from "@react-three/drei";
 
 function VictorModel() {
@@ -13,6 +13,22 @@ function VictorModel() {
       actions.idle.play();
     }
   }, [actions]);
+
+  // Smooth rotation animation within bounds
+  useFrame((state) => {
+    const time = state.clock.getElapsedTime();
+    
+    // Rotate left-right within ±30 degrees (±0.524 radians)
+    const yRotation = Math.sin(time * 0.5) * 0.524; // 30 degrees = 0.524 radians
+    
+    // Rotate up-down within ±10 degrees (±0.175 radians)
+    const xRotation = Math.sin(time * 0.7) * 0.175; // 10 degrees = 0.175 radians
+    
+    if (group.current) {
+      group.current.rotation.y = yRotation;
+      group.current.rotation.x = xRotation;
+    }
+  });
 
   if (!scene) {
     return null;
