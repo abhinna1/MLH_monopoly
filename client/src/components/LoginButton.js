@@ -18,7 +18,7 @@ export default function StudentBootstrap() {
     (async () => {
       try {
         // Your backend creates/ensures the (singleton) student here
-        await fetch("http://localhost:8000/api/student", { method: "POST" });
+        await fetch(`${process.env.REACT_APP_SERVER_URL}/api/student`, { method: "POST" });
         console.log("Student ensured for:", user?.sub);
       } catch (e) {
         console.error("Failed to init student:", e);

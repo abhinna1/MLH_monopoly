@@ -10,7 +10,7 @@ import {
 } from "react-router-dom";
 import LoginButton from "./components/LoginButton";
 import LogoutButton from "./components/LogoutButton";
-import HomePage from "./components/Homepage";
+import HomePage from "./components/HomeUB";
 import ProfilePage from "./components/Profilepage";
 import SyllabusFormPage from "./components/SyllabusFormPage"; // ⬅️ NEW
 import Board from "./components/Board";

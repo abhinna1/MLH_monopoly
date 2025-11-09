@@ -129,7 +129,7 @@ function SyllabusFormPage() {
 
       console.log("Submitting course payload:", payload);
 
-      const res = await fetch("http://localhost:8000/api/course", {
+      const res = await fetch(`${process.env.REACT_APP_SERVER_URL}/api/course`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -160,7 +160,7 @@ function SyllabusFormPage() {
       const fd = new FormData();
       fd.append("file", file);
 
-      const res = await fetch("http://localhost:8000/api/syllabus/parse", {
+      const res = await fetch(`${process.env.REACT_APP_SERVER_URL}/api/syllabus/parse`, {
         method: "POST",
         body: fd,
       });
