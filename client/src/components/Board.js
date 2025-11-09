@@ -52,13 +52,13 @@ function TileHorizontal({ label, reward, orientation = "top", active, color }) {
     >
       <div style={barStyle} />
       <div
-        className="flex-1 flex flex-col items-center justify-center text-[11px] text-center leading-tight text-slate-800"
+        className="flex-1 flex flex-col items-center justify-center text-[11px] text-center leading-tight text-slate-800 relative"
         style={contentPad}
       >
         <div className="font-medium">{label}</div>
-        <div className="mt-2 font-semibold text-slate-900">⭐ {reward}</div>
+        <div className="mt-2 font-semibold text-slate-900 relative z-10">⭐ {reward}</div>
         {active && (
-          <div className="mt-2">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <img 
               src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Buffalo_Bulls_logo.svg/120px-Buffalo_Bulls_logo.svg.png" 
               alt="Player" 
@@ -97,18 +97,18 @@ function TileVertical({ label, reward, orientation = "right", active, color }) {
   return (
     <div
       className={`border border-slate-400 flex flex-col bg-white/90 h-full min-h-0 relative transition-transform duration-500 ${
-        active ? "ring-4 ring-amber-400/70 scale-[1.3] z-[100] shadow-2xl" : ""
+        active ? "ring-4 ring-amber-400/70 scale-[1.4] z-[100] shadow-2xl" : ""
       }`}
     >
       <div style={barStyle} />
       <div
-        className="flex-1 flex flex-col items-center justify-center text-[11px] text-center leading-tight text-slate-800"
+        className="flex-1 flex flex-col items-center justify-center text-[11px] text-center leading-tight text-slate-800 relative"
         style={contentPad}
       >
         <div className="font-medium">{label}</div>
-        <div className="mt-2 font-semibold text-slate-900">⭐ {reward}</div>
+        <div className="mt-2 font-semibold text-slate-900 relative z-10">⭐ {reward}</div>
         {active && (
-          <div className="mt-2">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <img 
               src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Buffalo_Bulls_logo.svg/120px-Buffalo_Bulls_logo.svg.png" 
               alt="Player" 
@@ -137,6 +137,25 @@ export default function Board() {
   const [err, setErr] = useState("");
   const [lastRoll, setLastRoll] = useState(null); // { roll, min, reward }
   const [chatOpen, setChatOpen] = useState(true); // chat open by default
+  const [victorModeOverride, setVictorModeOverride] = useState(null); // For permanent mode persistence
+  
+  // Milestone celebration state
+  const [celebration, setCelebration] = useState(null); // { score: 25, message: "Quarter Century!" }
+  const previousScoreRef = useRef(0);
+
+  // Calculate Victor mode based on last dice roll (permanent once set)
+  const victorMode = useMemo(() => {
+    // If we have an override (permanent mode), use it
+    if (victorModeOverride) return victorModeOverride;
+    
+    if (!lastRoll || !lastRoll.roll) return "standing";
+    const roll = lastRoll.roll;
+    
+    if (roll >= 6) return "flare";      // dice >= 6: flare mode
+    if (roll >= 4) return "samba";      // dice >= 4: samba mode
+    if (roll <= 2) return "talking";    // dice <= 2: talking mode
+    return "standing";                   // dice 3: standing mode
+  }, [lastRoll, victorModeOverride]);
 
   // Complete modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -185,6 +204,56 @@ export default function Board() {
     };
   }, []);
 
+  // Check for milestone achievements (multiples of 25)
+  useEffect(() => {
+    if (!student || !student.totalReward) {
+      previousScoreRef.current = 0;
+      return;
+    }
+    
+    const currentScore = student.totalReward;
+    const previousScore = previousScoreRef.current;
+    
+    // Check if we've crossed a milestone (multiple of 25)
+    if (currentScore > previousScore && currentScore >= 25) {
+      const currentMilestone = Math.floor(currentScore / 25) * 25;
+      const previousMilestone = Math.floor(previousScore / 25) * 25;
+      
+      if (currentMilestone > previousMilestone) {
+        // We've achieved a new milestone!
+        const milestoneMessages = {
+          25: "Quarter Century!",
+          50: "Half Century!",
+          75: "Three Quarters!",
+          100: "Century! 💯",
+          125: "125 Points!",
+          150: "150 Points!",
+          175: "Almost 200!",
+          200: "Double Century! 🎉",
+          250: "Quarter Millennium!",
+          300: "Triple Century! 🔥",
+          400: "Quadruple Century!",
+          500: "Half Millennium! 🌟",
+          1000: "MILLENNIUM! 🏆"
+        };
+        
+        const message = milestoneMessages[currentMilestone] || `${currentMilestone} Points!`;
+        
+        setCelebration({
+          score: currentMilestone,
+          message: message
+        });
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+          setCelebration(null);
+        }, 5000);
+      }
+    }
+    
+    previousScoreRef.current = currentScore;
+  }, [student?.totalReward]);
+
   // student actions
   const initStudent = async () => {
     await fetch("http://localhost:8000/api/student", { method: "POST" });
@@ -224,24 +293,32 @@ export default function Board() {
     const idx = modalTask.i;
 
     const hasMax = Number.isFinite(Number(modalTask.points));
-    const val = Number(scoreInput);
+    const percentage = Number(scoreInput);
 
-    if (!Number.isFinite(val) || val < 0) {
-      setSubmitMsg("Enter a valid non-negative number.");
+    // Validate percentage input (0-100)
+    if (!Number.isFinite(percentage) || percentage < 0) {
+      setSubmitMsg("Enter a valid non-negative percentage.");
       return;
     }
-    if (!hasMax && val > 100) {
-      setSubmitMsg("Percent cannot exceed 100.");
+    if (percentage > 100) {
+      setSubmitMsg("Percentage cannot exceed 100.");
       return;
     }
-    if (hasMax && val > Number(modalTask.points)) {
-      setSubmitMsg(`Score cannot exceed max (${modalTask.points}).`);
-      return;
+
+    // Calculate actual score from percentage
+    let actualScore;
+    if (hasMax) {
+      const maxPoints = Number(modalTask.points);
+      // Calculate percentage of max points and round up
+      actualScore = Math.ceil((percentage / 100) * maxPoints);
+    } else {
+      // If no max points, just use the percentage directly
+      actualScore = percentage;
     }
 
     const body = hasMax
-      ? { taskIndex: idx, scoreObtained: val, deferRoll: true }
-      : { taskIndex: idx, scorePercent: val, deferRoll: true };
+      ? { taskIndex: idx, scoreObtained: actualScore, deferRoll: true }
+      : { taskIndex: idx, scorePercent: percentage, deferRoll: true };
 
     try {
       setSubmitting(true);
@@ -434,11 +511,19 @@ export default function Board() {
         setTimeout(() => {
           setRollFace(rolled);
           // keep a local snapshot so the panel doesn't vanish
-          setLastRoll({
+          const rollData = {
             roll: rolled,
             min: data?.die?.min ?? null,
             reward: data?.rewardGained ?? 0,
-          });
+          };
+          setLastRoll(rollData);
+          
+          // Set mode override for cycle-based persistence
+          let mode = "standing";
+          if (rolled >= 6) mode = "flare";
+          else if (rolled >= 4) mode = "samba";
+          else if (rolled <= 2) mode = "talking";
+          setVictorModeOverride(mode);
 
           setTimeout(async () => {
             setRolling(false);
@@ -446,8 +531,7 @@ export default function Board() {
             setToast(`Rolled ${rolled} • +${data?.rewardGained ?? 0} ⭐`);
             setTimeout(() => setToast(""), 2500);
             await fetchAll(); // this clears pendingCompletion (OK now)
-            // optional: auto-hide the last roll after a few seconds
-            setTimeout(() => setLastRoll(null), 4000);
+            // Mode will be cleared after 10 animation cycles by handleCycleComplete
           }, 600);
         }, 300);
       } else {
@@ -470,6 +554,41 @@ export default function Board() {
       {toast && (
         <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow">
           {toast}
+        </div>
+      )}
+
+      {/* MILESTONE CELEBRATION OVERLAY */}
+      {celebration && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+          <div className="animate-celebration pointer-events-auto">
+            <div className="relative bg-gradient-to-br from-blue-400 via-blue-600 to-blue-800 text-white px-16 py-12 rounded-3xl shadow-2xl border-8 border-blue-300 transform hover:scale-105 transition-transform">
+              {/* Sparkle effects */}
+              <div className="absolute -top-4 -left-4 text-6xl animate-bounce">✨</div>
+              <div className="absolute -top-4 -right-4 text-6xl animate-bounce delay-100">✨</div>
+              <div className="absolute -bottom-4 -left-4 text-6xl animate-bounce delay-200">✨</div>
+              <div className="absolute -bottom-4 -right-4 text-6xl animate-bounce delay-300">✨</div>
+              
+              <div className="text-center">
+                <div className="text-7xl font-black mb-4 animate-pulse tracking-tight drop-shadow-lg">
+                  🎉 {celebration.score} 🎉
+                </div>
+                <div className="text-4xl font-bold mb-2 animate-pulse tracking-wide drop-shadow-md">
+                  CONGRATULATIONS!
+                </div>
+                <div className="text-3xl font-semibold animate-bounce drop-shadow">
+                  {celebration.message}
+                </div>
+              </div>
+              
+              {/* Close button */}
+              <button
+                onClick={() => setCelebration(null)}
+                className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-2xl font-bold transition-colors pointer-events-auto"
+              >
+                ×
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -535,51 +654,46 @@ export default function Board() {
 
         {/* Center content */}
         <div className="absolute inset-28 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 rounded-[32px] shadow-inner border border-slate-200/70 overflow-hidden">
-          {!student ? (
-            // Show logo when no student (game not started)
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="-rotate-12 text-center drop-shadow-sm">
-                <div className="text-6xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
-                  UB
-                </div>
-                <div className="mt-6 text-6xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
-                  TYCOON
-                </div>
-                <div className="mt-6 text-6xl font-black tracking-[0.25em] text-sky-900 uppercase flex justify-center">
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Buffalo_Bulls_logo.svg/1280px-Buffalo_Bulls_logo.svg.png" alt="ub-logo" className="w-[25%]"/>
-                </div>
+          {/* Background watermark - UB TYCOON */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="-rotate-12 text-center opacity-10">
+              <div className="text-8xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
+                UB
+              </div>
+              <div className="mt-8 text-8xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
+                TYCOON
               </div>
             </div>
-          ) : (
-            // Show Victor on left, Chatbot on right when game started
-                        <div className="w-full h-full grid grid-cols-2 gap-4">
-              {/* Left half - Victor 3D */}
-              <div className="relative w-full h-full min-h-[400px]">
-                <CenterVictor />
-              </div>
-              {/* Right half - Chatbot with speech bubble */}
-              <div className="relative w-full h-full overflow-hidden flex items-center justify-start">
-                {chatOpen ? (
-                  <div className="w-[90%] h-[90%]">
-                    <Chatbot 
-                      position="inline" 
-                      defaultOpen={true} 
-                      showToggle={false}
-                      className="h-full"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="text-center text-slate-400">
-                      <div className="text-4xl mb-2">💬</div>
-                      <div className="text-sm">Chat closed</div>
-                      <div className="text-xs mt-1">Click button in START corner to open</div>
-                    </div>
-                  </div>
-                )}
-              </div>
+          </div>
+          
+          {/* Always show Victor and Chatbot */}
+          <div className="w-full h-full grid grid-cols-2 gap-4">
+            {/* Left half - Victor 3D */}
+            <div className="relative w-full h-full min-h-[400px]">
+              <CenterVictor mode={victorMode} />
             </div>
-          )}
+            {/* Right half - Chatbot with speech bubble or Welcome message */}
+            <div className="relative w-full h-full overflow-hidden flex items-center justify-start">
+              {chatOpen ? (
+                <div className="w-[90%] h-[90%]">
+                  <Chatbot 
+                    position="inline" 
+                    defaultOpen={true} 
+                    showToggle={false}
+                    className="h-full"
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="text-center text-slate-400">
+                    <div className="text-4xl mb-2">💬</div>
+                    <div className="text-sm">Chat closed</div>
+                    <div className="text-xs mt-1">Click button in START corner to open</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Sides */}
@@ -934,17 +1048,15 @@ export default function Board() {
                   Complete Task #{modalTask.i} — {modalTask.title || "Task"}
                 </h4>
                 <p className="mt-1 text-xs text-slate-600">
-                  Enter{" "}
-                  {Number.isFinite(Number(modalTask.points))
-                    ? "score obtained"
-                    : "percent (0–100)"}{" "}
+                  Enter percentage (0–100){" "}
                   {Number.isFinite(Number(modalTask.points)) && (
                     <>
-                      out of{" "}
-                      <span className="font-semibold">{modalTask.points}</span>
+                      of max score{" "}
+                      <span className="font-semibold">{modalTask.points}</span>.
+                      {" "}Score will be rounded up to nearest integer.
                     </>
                   )}
-                  . We’ll save your die chance; you’ll roll it explicitly.
+                  {" "}We'll save your die chance; you'll roll it explicitly.
                 </p>
               </div>
               <button
@@ -959,27 +1071,17 @@ export default function Board() {
 
             <div className="mt-4">
               <label className="block text-sm font-medium text-slate-700">
-                {Number.isFinite(Number(modalTask.points))
-                  ? "Score obtained"
-                  : "Percent"}
+                Percentage (0-100)
               </label>
               <input
                 type="number"
                 step="any"
                 min={0}
-                max={
-                  Number.isFinite(Number(modalTask.points))
-                    ? modalTask.points
-                    : 100
-                }
+                max={100}
                 value={scoreInput}
                 onChange={(e) => setScoreInput(e.target.value)}
                 className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                placeholder={
-                  Number.isFinite(Number(modalTask.points))
-                    ? "e.g., 18"
-                    : "e.g., 92"
-                }
+                placeholder="e.g., 92"
               />
             </div>
 

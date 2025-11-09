@@ -3,26 +3,57 @@ import React, { useRef, useState, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations, OrbitControls } from "@react-three/drei";
 
-function VictorModel() {
+function VictorModel({ mode = "standing" }) {
   const group = useRef();
-  const { scene, animations } = useGLTF("/models/standing.glb");
+  
+  // Map mode to model file (using actual files that exist)
+  const modelFiles = {
+    standing: "/models/standing.glb",
+    talking: "/models/talking.glb",    // talking.glb exists
+    samba: "/models/samba1.glb",       // samba1.glb exists
+    flare: "/models/flare.glb"
+  };
+  
+  const modelFile = modelFiles[mode] || modelFiles.standing;
+  const { scene, animations } = useGLTF(modelFile);
   const { actions } = useAnimations(animations, group);
 
   React.useEffect(() => {
-    if (actions && actions.idle) {
-      actions.idle.play();
+    if (actions) {
+      // Stop all animations first
+      Object.values(actions).forEach(action => action?.stop());
+      
+      // Play appropriate animation based on mode
+      // Just play the first available animation for each model
+      const firstAction = Object.values(actions)[0];
+      if (firstAction) {
+        firstAction.play();
+      }
     }
-  }, [actions]);
+  }, [actions, mode]);
 
-  // Smooth rotation animation within bounds
+  // Smooth rotation animation within bounds (less rotation for talking/samba)
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
+    let yRotation, xRotation;
     
-    // Rotate left-right within ±30 degrees (±0.524 radians)
-    const yRotation = Math.sin(time * 0.5) * 0.524; // 30 degrees = 0.524 radians
-    
-    // Rotate up-down within ±10 degrees (±0.175 radians)
-    const xRotation = Math.sin(time * 0.7) * 0.175; // 10 degrees = 0.175 radians
+    if (mode === "flare") {
+      // More dramatic rotation for flare mode
+      yRotation = Math.sin(time * 0.8) * 0.785; // 45 degrees
+      xRotation = Math.sin(time * 0.9) * 0.262; // 15 degrees
+    } else if (mode === "samba") {
+      // Bouncy rotation for samba
+      yRotation = Math.sin(time * 1.2) * 0.524; // 30 degrees, faster
+      xRotation = Math.sin(time * 1.5) * 0.175; // 10 degrees, faster
+    } else if (mode === "talking") {
+      // Gentle nodding for talking
+      yRotation = Math.sin(time * 0.3) * 0.262; // 15 degrees, slower
+      xRotation = Math.sin(time * 0.4) * 0.087; // 5 degrees, slower
+    } else {
+      // Default standing rotation
+      yRotation = Math.sin(time * 0.5) * 0.524; // 30 degrees
+      xRotation = Math.sin(time * 0.7) * 0.175; // 10 degrees
+    }
     
     if (group.current) {
       group.current.rotation.y = yRotation;
@@ -63,7 +94,7 @@ function ErrorFallback() {
   );
 }
 
-export default function CenterVictor() {
+export default function CenterVictor({ mode = "standing" }) {
   const [hasError, setHasError] = useState(false);
 
   if (hasError) {
@@ -110,7 +141,7 @@ export default function CenterVictor() {
             castShadow
           />
           
-          <VictorModel />
+          <VictorModel mode={mode} />
           
           <OrbitControls 
             enableZoom={false}
