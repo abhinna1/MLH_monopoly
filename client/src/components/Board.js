@@ -46,7 +46,7 @@ function TileHorizontal({ label, reward, orientation = "top", active, color }) {
       : { paddingBottom: BAR_THICKNESS + 4 };
   return (
     <div
-      className={`border border-slate-400 h-[120px] flex flex-col bg-white/90 relative transition-transform duration-500 ${
+      className={`border border-slate-400 h-full flex flex-col bg-white/90 relative transition-transform duration-500 ${
         active ? "ring-4 ring-amber-400/70 scale-[1.8] z-[100] shadow-2xl" : ""
       }`}
     >
@@ -554,20 +554,21 @@ export default function Board() {
         </div>
       )}
 
+      {/* Floating Zoom Toggle Button - top left outside of board */}
+      <button
+        onClick={() => setZoomEnabled(!zoomEnabled)}
+        className={`fixed top-[2%] left-[2%] z-50 rounded-lg px-4 py-2 font-semibold shadow-lg transition-all hover:scale-105 ${
+          zoomEnabled
+            ? 'bg-sky-600 text-white hover:bg-sky-700'
+            : 'bg-white text-slate-800 border-2 border-slate-300 hover:bg-slate-50'
+        }`}
+        title={zoomEnabled ? 'Click to zoom out' : 'Click to zoom in'}
+      >
+        {zoomEnabled ? '🔍 Zoomed In' : '🔍 Zoomed Out'}
+      </button>
+
       {/* BOARD CONTAINER with viewport transform */}
       <div className="relative w-[900px] h-[900px] overflow-visible shrink-0">
-        {/* Floating Zoom Toggle Button - top left inside tile area */}
-        <button
-          onClick={() => setZoomEnabled(!zoomEnabled)}
-          className={`absolute top-[180px] left-[180px] z-50 rounded-lg px-4 py-2 font-semibold shadow-lg transition-all hover:scale-105 ${
-            zoomEnabled
-              ? 'bg-sky-600 text-white hover:bg-sky-700'
-              : 'bg-white text-slate-800 border-2 border-slate-300 hover:bg-slate-50'
-          }`}
-          title={zoomEnabled ? 'Click to zoom out' : 'Click to zoom in'}
-        >
-          {zoomEnabled ? '🔍 Zoomed In' : '🔍 Zoomed Out'}
-        </button>
         
         <div 
           className="origin-top-left transition-transform duration-700 ease-out"
@@ -640,7 +641,7 @@ export default function Board() {
               </div>
             </div>
           ) : (
-            // Show Victor on left, Chatbot on right when game started
+            // Show git on left, Chatbot on right when game started
             <div className="w-full h-full grid grid-cols-2">
               {/* Left half - Victor 3D */}
               <div className="relative">
@@ -656,11 +657,15 @@ export default function Board() {
 
         {/* Sides */}
         <div
-          className="absolute bottom-0 left-[120px] right-[120px] flex z-10"
-          style={{ height: "120px" }}
+          className="absolute bottom-0 z-10"
+          style={{ 
+            left: "13.33%", 
+            right: "13.33%",
+            height: "13.33%"
+          }}
         >
           <div
-            className="flex-1 grid"
+            className="w-full h-full grid"
             style={{
               gridTemplateColumns: `repeat(${counts.bottom}, 1fr)`,
               gap: 0,
@@ -670,11 +675,15 @@ export default function Board() {
           </div>
         </div>
         <div
-          className="absolute top-0 left-[120px] right-[120px] flex z-10"
-          style={{ height: "120px" }}
+          className="absolute top-0 z-10"
+          style={{ 
+            left: "13.33%", 
+            right: "13.33%",
+            height: "13.33%"
+          }}
         >
           <div
-            className="flex-1 grid"
+            className="w-full h-full grid"
             style={{
               gridTemplateColumns: `repeat(${counts.top}, 1fr)`,
               gap: 0,
@@ -683,17 +692,31 @@ export default function Board() {
             {sideTiles.top}
           </div>
         </div>
-        <div className="absolute left-0 top-[120px] bottom-[120px] flex z-10">
+        <div 
+          className="absolute left-0 z-10"
+          style={{
+            top: "13.33%",
+            bottom: "13.33%",
+            width: "13.33%"
+          }}
+        >
           <div
-            className="w-[120px] h-full grid"
+            className="w-full h-full grid"
             style={{ gridTemplateRows: `repeat(${counts.left}, 1fr)`, gap: 0 }}
           >
             {sideTiles.left}
           </div>
         </div>
-        <div className="absolute right-0 top-[120px] bottom-[120px] flex z-10">
+        <div 
+          className="absolute right-0 z-10"
+          style={{
+            top: "13.33%",
+            bottom: "13.33%",
+            width: "13.33%"
+          }}
+        >
           <div
-            className="w-[120px] h-full grid"
+            className="w-full h-full grid"
             style={{ gridTemplateRows: `repeat(${counts.right}, 1fr)`, gap: 0 }}
           >
             {sideTiles.right}
