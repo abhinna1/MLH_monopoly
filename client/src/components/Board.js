@@ -556,10 +556,10 @@ export default function Board() {
 
       {/* BOARD CONTAINER with viewport transform */}
       <div className="relative w-[900px] h-[900px] overflow-visible shrink-0">
-        {/* Floating Zoom Toggle Button - top right inside tile area */}
+        {/* Floating Zoom Toggle Button - top left inside tile area */}
         <button
           onClick={() => setZoomEnabled(!zoomEnabled)}
-          className={`absolute top-[180px] right-[180px] z-50 rounded-lg px-4 py-2 font-semibold shadow-lg transition-all hover:scale-105 ${
+          className={`absolute top-[180px] left-[180px] z-50 rounded-lg px-4 py-2 font-semibold shadow-lg transition-all hover:scale-105 ${
             zoomEnabled
               ? 'bg-sky-600 text-white hover:bg-sky-700'
               : 'bg-white text-slate-800 border-2 border-slate-300 hover:bg-slate-50'
