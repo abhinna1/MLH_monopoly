@@ -277,7 +277,7 @@ function makeAscendingPathVector(taskCount, ratio = 3) {
 
 // ---------------- Mongo ----------------
 
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_URI = process.env.MONGODB_URI;
 mongoose
   .connect(MONGO_URI)
   .then(() => console.log("[mongo] connected"))
