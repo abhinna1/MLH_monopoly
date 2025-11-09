@@ -30,7 +30,6 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-
 function App() {
   return (
     <Router>
@@ -44,7 +43,10 @@ function App() {
               <Link to="/profile" className="font-medium hover:text-blue-700">
                 Profile
               </Link>
-              <Link to="/syllabus-form" className="font-medium hover:text-blue-700">
+              <Link
+                to="/syllabus-form"
+                className="font-medium hover:text-blue-700"
+              >
                 Syllabus
               </Link>
               <Link to="/board" className="font-medium hover:text-blue-700">
@@ -55,7 +57,7 @@ function App() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-5xl px-4 py-6">
+        <main className="mx-auto max-w-5xl md:max-w-[80%] px-4 py-6">
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route
@@ -75,11 +77,12 @@ function App() {
               }
             />
             <Route
-            path="/board"
+              path="/board"
               element={
-                <Board />
+                <ProtectedRoute>
+                  <Board />
+                </ProtectedRoute>
               }
-            
             />
           </Routes>
         </main>

@@ -29,16 +29,50 @@ const inputCls =
 const labelCls = `block text-sm font-medium mb-1 text-[${UB.harriman}]`;
 const fieldsetCls = `rounded-xl border bg-white p-4 shadow-sm border-[${UB.grayLight}]`;
 
-const SyllabusFormPage = () => {
+// ----- RNG helpers: integers only -----
+const randInt = (min, max) => {
+  const lo = Math.ceil(Number(min));
+  const hi = Math.floor(Number(max));
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return 1;
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const range = hi - lo + 1;
+    const maxUint = 0xffffffff;
+    const limit = Math.floor(maxUint / range) * range;
+    let x;
+    do {
+      const buf = new Uint32Array(1);
+      crypto.getRandomValues(buf);
+      x = buf[0];
+    } while (x >= limit);
+    return lo + (x % range);
+  }
+  return Math.floor(Math.random() * (hi - lo + 1)) + lo;
+};
+
+// Tunables
+const REWARD_MIN = 1;
+const REWARD_MAX = 20;
+const POINTS_MIN = 5;
+const POINTS_MAX = 30;
+
+function SyllabusFormPage() {
   const { user } = useAuth0();
 
   const [courseName, setCourseName] = useState("");
   const [term, setTerm] = useState("");
-  const [tasks, setTasks] = useState([{ ...baseEmptyTask }]);
+  // seed first task with random points so the input shows something useful
+  const [tasks, setTasks] = useState([
+    { ...baseEmptyTask, points: String(randInt(POINTS_MIN, POINTS_MAX)) },
+  ]);
 
-  // NEW: import state
+  // Import (LLM) state
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState("");
+
+  // Save-to-API state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveOk, setSaveOk] = useState(false);
 
   const handleTaskChange = (index, field, value) => {
     setTasks((prev) => {
@@ -48,18 +82,73 @@ const SyllabusFormPage = () => {
     });
   };
 
-  const addTask = () => setTasks((prev) => [...prev, { ...baseEmptyTask }]);
+  const addTask = () =>
+    setTasks((prev) => [
+      ...prev,
+      { ...baseEmptyTask, points: String(randInt(POINTS_MIN, POINTS_MAX)) },
+    ]);
+
   const removeTask = (index) =>
     setTasks((prev) => prev.filter((_, i) => i !== index));
 
-  const handleSubmit = (e) => {
+  // Build path vector with RANDOM rewards (independent of points)
+  const buildPathVectorFromTasks = (ts) =>
+    ts.map((t, i) => ({
+      name: (t.title || "").trim() || `${t.type} ${i + 1}`,
+      reward: randInt(REWARD_MIN, REWARD_MAX),
+    }));
+
+  // Save course to backend
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const payload = { professor: user?.email, courseName, term, tasks };
-    console.log("Syllabus submitted:", payload);
-    alert("Syllabus saved (check console for payload).");
+    setSaveOk(false);
+    setSaveError("");
+    setIsSaving(true);
+
+    try {
+      // Ensure each task.points is an integer; generate if missing/invalid
+      const tasksForSave = tasks.map((t) => {
+        const n = Number(t.points);
+        const cleanPoints = Number.isFinite(n) && n >= 0 ? Math.trunc(n) : randInt(POINTS_MIN, POINTS_MAX);
+        return {
+          title: t.title || "",
+          type: t.type || "assignment",
+          dueDate: t.dueDate || "",
+          points: cleanPoints,
+          description: t.description || "",
+        };
+      });
+
+      const payload = {
+        professor: user?.email || "",
+        courseName,
+        term,
+        tasks: tasksForSave,
+        pathVector: buildPathVectorFromTasks(tasksForSave),
+      };
+
+      console.log("Submitting course payload:", payload);
+
+      const res = await fetch("http://localhost:8000/api/course", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || `Save failed (${res.status})`);
+      }
+
+      setSaveOk(true);
+    } catch (err) {
+      setSaveError(err.message || "Save failed.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // NEW: File -> backend -> populate form
+  // Upload syllabus -> backend LLM parse -> populate form
   const handleFilePick = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -81,29 +170,32 @@ const SyllabusFormPage = () => {
         throw new Error(msg || `Import failed (${res.status})`);
       }
 
-      const data = await res.json();
-      // Expected data: { courseName, term, tasks: [{title,type,dueDate,points,description}] }
+      const data = await res.json(); // { courseName, term, tasks: [...] }
 
       setCourseName(data.courseName || "");
       setTerm(data.term || "");
       if (Array.isArray(data.tasks) && data.tasks.length) {
         setTasks(
-          data.tasks.map((t) => ({
-            title: t.title || "",
-            type: t.type || "assignment",
-            // <input type="date" /> needs YYYY-MM-DD
-            dueDate: (t.dueDate || "").slice(0, 10),
-            points: t.points ?? "",
-            description: t.description || "",
-          }))
+          data.tasks.map((t) => {
+            // If the LLM didn't provide points, generate a random integer
+            const n = Number(t.points);
+            const cleanPoints =
+              Number.isFinite(n) && n >= 0 ? Math.trunc(n) : randInt(POINTS_MIN, POINTS_MAX);
+            return {
+              title: t.title || "",
+              type: t.type || "assignment",
+              dueDate: (t.dueDate || "").slice(0, 10), // for <input type="date" />
+              points: String(cleanPoints),
+              description: t.description || "",
+            };
+          })
         );
       }
     } catch (err) {
       setImportError(err.message || "Import failed.");
     } finally {
       setIsImporting(false);
-      // Reset the file input so picking same file again re-triggers change
-      event.target.value = "";
+      event.target.value = ""; // allow re-selecting same file
     }
   };
 
@@ -159,7 +251,7 @@ const SyllabusFormPage = () => {
             </div>
           </div>
 
-          {/* NEW: Import row */}
+          {/* Import row */}
           <div className="mt-4 flex items-center justify-between gap-3">
             <div>
               <input
@@ -332,19 +424,34 @@ const SyllabusFormPage = () => {
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-3">
+          {saveError && (
+            <span className="text-sm" style={{ color: UB.orange }}>
+              {saveError}
+            </span>
+          )}
+          {saveOk && (
+            <span className="text-sm" style={{ color: UB.teal }}>
+              Saved!
+            </span>
+          )}
           <button
             type="submit"
-            className="inline-flex items-center rounded-lg px-5 py-2.5 text-sm font-bold focus:outline-none focus:ring-2"
+            disabled={isSaving}
+            className="inline-flex items-center rounded-lg px-5 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 disabled:opacity-60"
             style={{ backgroundColor: UB.yellow, color: UB.harriman }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = UB.sky)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = UB.yellow)}
+            onMouseEnter={(e) =>
+              !isSaving && (e.currentTarget.style.backgroundColor = UB.sky)
+            }
+            onMouseLeave={(e) =>
+              !isSaving && (e.currentTarget.style.backgroundColor = UB.yellow)
+            }
           >
-            Save Syllabus
+            {isSaving ? "Saving…" : "Save Syllabus"}
           </button>
         </div>
       </form>
     </div>
   );
-};
+}
 
 export default SyllabusFormPage;
