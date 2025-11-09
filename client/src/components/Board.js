@@ -1,5 +1,6 @@
 // components/Board.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
+import Chatbot from "./Chatbot";
 
 const BAR_COLORS = [
   "#005BBB",
@@ -926,6 +927,8 @@ export default function Board() {
           </div>
         </div>
       )}
+      {/* Chatbot popup */}
+      <Chatbot />
     </div>
   );
 }

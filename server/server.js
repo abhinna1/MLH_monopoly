@@ -37,6 +37,7 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 app.use(express.json()); // JSON bodies for /api/course, /api/student, etc.
 
 const upload = multer({
@@ -190,7 +191,7 @@ Extraction Rules:
 
 Point Calculation Rules:
 - If explicit points are listed for a task, use them.
-- If a "Grade Policy" or weighting section is present (percentages & task counts), calculate task points assuming total 100 points:
+- If a "Grade Policy" or weighting section is present (percentages & task counts), calculate task points assuming total number 100 points:
   Task Points = (Category Percentage / Number of Tasks in Category)
 - If neither explicit points nor weighting data is available, set "points" to null.
 
@@ -404,6 +405,138 @@ app.post("/api/syllabus/parse", upload.single("file"), async (req, res) => {
     try { await fs.unlink(filePath); } catch {}
   }
 });
+
+const BASE_PROMPT = `SYSTEM ROLE:
+You are a strictly focused academic success coach for a student at University at Buffalo.
+
+STRICT GATEKEEPER RULES:
+1. READ the "User message" at the very bottom of this prompt.
+2. EVALUATE RELEVANCE: Is the user explicitly asking about their studies, tasks, grades, or what to do next?
+   - IF NO (e.g., "hi", "what's up", "weather", "sports"): Respond ONLY with "Go Bills!" and terminate.
+   - IF YES: Proceed immediately to ACADEMIC INSTRUCTIONS.
+
+ACADEMIC INSTRUCTIONS (Only if deemed relevant above):
+1. DEFINITION: A task is "NOT YET SUBMITTED" if "scoreObtained" is NULL or exactly 0.
+2. IDENTIFY FOCUS: Find the single "NOT YET SUBMITTED" task with the highest "points".
+3. RESPONSE (1 sentence ONLY):
+   - Direct the student to focus on that specific task and state its point value to justify the urgency.
+   - FALLBACK: If ALL tasks have scores > 0, respond: "All tasks have been submitted. Great work!"
+
+INPUT DATA (JSON):
+{{JSON_PAYLOAD}}
+`.trim();
+
+// Simple chat proxy to Google Gemini (AI Studio) — expects { message: string }
+app.post("/api/chat", async (req, res) => {
+  const msg = String(req.body?.message ?? "").trim();
+  if (!msg) return res.status(400).json({ error: "Missing message" });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey)
+    return res
+      .status(500)
+      .json({ error: "GEMINI_API_KEY not configured on server" });
+
+  try {
+    // 1) Load course + student, like fetchAll()
+    const [course, student] = await Promise.all([
+      Course.findById("singleton"),
+      Student.findById("singleton"),
+    ]);
+
+    if (!course) {
+      return res.status(400).json({ error: "No course found in database" });
+    }
+
+    // 2) Build a task list with scores merged in from student.completedTasks
+    const tasksPayload = (course.tasks || []).map((t, idx) => {
+      const snap =
+        student?.completedTasks?.find((ct) => ct.taskIndex === idx) || null;
+      return {
+        index: idx,
+        title: t.title,
+        type: t.type,
+        points: t.points ?? null,
+        dueDate: t.dueDate || null,
+        scoreObtained: snap?.scoreObtained ?? null,
+        scorePercent: snap?.scorePercent ?? null,
+      };
+    });
+
+    const payload = {
+      courseName: course.courseName,
+      term: course.term,
+      tasks: tasksPayload,
+    };
+
+    const jsonPayload = JSON.stringify(payload, null, 2);
+
+    // 3) Fill the prompt template with the JSON
+    const filledPrompt = BASE_PROMPT.replace(
+      "{{JSON_PAYLOAD}}",
+      jsonPayload
+    );
+
+    const url =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" +
+      `?key=${encodeURIComponent(apiKey)}`;
+
+    const body = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `${filledPrompt}\n\nUser message: ${msg}`,
+            },
+          ],
+        },
+      ],
+      generationConfig: { maxOutputTokens: 1024 },
+    };
+
+    const r = await fetchFn(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "");
+      return res
+        .status(500)
+        .json({ error: `Gemini error ${r.status}: ${txt}` });
+    }
+
+    const json = await r.json();
+    const candidate = json?.candidates?.[0];
+    let textOut = "";
+
+    if (candidate?.content?.parts?.length) {
+      textOut = candidate.content.parts
+        .map((p) => p.text || "")
+        .join("")
+        .trim();
+    }
+
+    if (!textOut) {
+      const reason =
+        candidate?.finishReason ||
+        json?.promptFeedback?.blockReason ||
+        "UNKNOWN";
+      textOut =
+        reason === "SAFETY"
+          ? "I couldn't answer that because the model flagged it as sensitive. Try rephrasing your question."
+          : "The model did not return any text for this request.";
+    }
+
+    return res.json({ reply: textOut });
+  } catch (err) {
+    console.error("/api/chat error:", err);
+    return res.status(500).json({ error: "Chat failed" });
+  }
+});
+
 
 // Health check
 app.get("/health", (_req, res) => res.send("ok"));
