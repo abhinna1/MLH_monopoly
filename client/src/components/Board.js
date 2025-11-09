@@ -1,6 +1,7 @@
 // components/Board.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import Chatbot from "./Chatbot";
+import CenterVictor from "./CenterVictor";
 
 const BAR_COLORS = [
   "#005BBB",
@@ -45,8 +46,8 @@ function TileHorizontal({ label, reward, orientation = "top", active, color }) {
       : { paddingBottom: BAR_THICKNESS + 4 };
   return (
     <div
-      className={`border border-slate-400 h-[120px] flex flex-col bg-white/90 relative ${
-        active ? "ring-4 ring-amber-400/70" : ""
+      className={`border border-slate-400 h-[120px] flex flex-col bg-white/90 relative transition-transform duration-500 ${
+        active ? "ring-4 ring-amber-400/70 scale-[1.8] z-[100] shadow-2xl" : ""
       }`}
     >
       <div style={barStyle} />
@@ -57,8 +58,12 @@ function TileHorizontal({ label, reward, orientation = "top", active, color }) {
         <div className="font-medium">{label}</div>
         <div className="mt-2 font-semibold text-slate-900">⭐ {reward}</div>
         {active && (
-          <div className="mt-1">
-            <span className="inline-block h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="mt-2">
+            <img 
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Buffalo_Bulls_logo.svg/120px-Buffalo_Bulls_logo.svg.png" 
+              alt="Player" 
+              className="w-8 h-8 animate-bounce"
+            />
           </div>
         )}
       </div>
@@ -91,8 +96,8 @@ function TileVertical({ label, reward, orientation = "right", active, color }) {
       : { paddingRight: BAR_THICKNESS + 4 };
   return (
     <div
-      className={`border border-slate-400 flex flex-col bg-white/90 h-full min-h-0 relative ${
-        active ? "ring-4 ring-amber-400/70" : ""
+      className={`border border-slate-400 flex flex-col bg-white/90 h-full min-h-0 relative transition-transform duration-500 ${
+        active ? "ring-4 ring-amber-400/70 scale-[1.8] z-[100] shadow-2xl" : ""
       }`}
     >
       <div style={barStyle} />
@@ -103,8 +108,12 @@ function TileVertical({ label, reward, orientation = "right", active, color }) {
         <div className="font-medium">{label}</div>
         <div className="mt-2 font-semibold text-slate-900">⭐ {reward}</div>
         {active && (
-          <div className="mt-1">
-            <span className="inline-block h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="mt-2">
+            <img 
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Buffalo_Bulls_logo.svg/120px-Buffalo_Bulls_logo.svg.png" 
+              alt="Player" 
+              className="w-8 h-8 animate-bounce"
+            />
           </div>
         )}
       </div>
@@ -127,6 +136,7 @@ export default function Board() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [lastRoll, setLastRoll] = useState(null); // { roll, min, reward }
+  const [zoomEnabled, setZoomEnabled] = useState(true); // toggle zoom effect
 
   // Complete modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -382,6 +392,87 @@ export default function Board() {
     [tasks, completedSet]
   );
 
+  // Calculate viewport transform to focus on active tile
+  const calculateTilePosition = (index) => {
+    if (index < 0) return null;
+    
+    const boardWidth = 900;
+    const boardHeight = 900;
+    const cornerSize = 120;
+    
+    let x = 0, y = 0;
+    
+    const [bc, lc, tc, rc] = splitCounts(path.length);
+    
+    // Calculate dynamic tile sizes for each side
+    const bottomTileWidth = (boardWidth - 2 * cornerSize) / (bc || 1);
+    const leftTileHeight = (boardHeight - 2 * cornerSize) / (lc || 1);
+    const topTileWidth = (boardWidth - 2 * cornerSize) / (tc || 1);
+    const rightTileHeight = (boardHeight - 2 * cornerSize) / (rc || 1);
+    
+    if (index < bc) {
+      // Bottom row: index 0 is at bottom-right (near START), moving left
+      // In the DOM they're reversed, so position 0 is rightmost
+      const posInBottom = index;
+      x = boardWidth - cornerSize - (posInBottom * bottomTileWidth) - (bottomTileWidth / 2);
+      y = boardHeight - 60; // Center of bottom tile strip (120px height, so 60px from bottom)
+    } else if (index < bc + lc) {
+      // Left column: moving up from bottom-left corner
+      const posInLeft = index - bc;
+      x = 60; // Center of left tile strip
+      y = boardHeight - cornerSize - (posInLeft * leftTileHeight) - (leftTileHeight / 2);
+    } else if (index < bc + lc + tc) {
+      // Top row: moving right from top-left corner
+      const posInTop = index - bc - lc;
+      x = cornerSize + (posInTop * topTileWidth) + (topTileWidth / 2);
+      y = 60; // Center of top tile strip (120px height, so 60px from top)
+    } else {
+      // Right column: moving down from top-right corner
+      const posInRight = index - bc - lc - tc;
+      x = boardWidth - 60; // Center of right tile strip
+      y = cornerSize + (posInRight * rightTileHeight) + (rightTileHeight / 2);
+    }
+    
+    return { x, y };
+  };
+
+  const viewportTransform = useMemo(() => {
+    if (!zoomEnabled || activeIndex < 0) {
+      return 'scale(1)';
+    }
+    
+    const tilePos = calculateTilePosition(activeIndex);
+    console.log('Active Index:', activeIndex);
+    console.log('Tile Position:', tilePos);
+    console.log('Path Length:', path.length);
+    
+    if (!tilePos) {
+      return 'scale(1)';
+    }
+    
+    // Scale factor for zoom
+    const zoomScale = 2.2;
+    
+    // We want to center the tile in the 900x900 viewport
+    // With origin-top-left, we need to:
+    // 1. Translate so the tile moves to center of viewport (450, 450)
+    // 2. Scale from that point
+    
+    // Calculate where the tile should be after scaling
+    // The tile at (tilePos.x, tilePos.y) needs to end up at (450, 450) after transform
+    const viewportCenterX = 450;
+    const viewportCenterY = 450;
+    
+    // translateX + tilePos.x * scale = viewportCenterX
+    // translateX = viewportCenterX - (tilePos.x * scale)
+    const translateX = viewportCenterX - (tilePos.x * zoomScale);
+    const translateY = viewportCenterY - (tilePos.y * zoomScale);
+    
+    console.log('Transform:', `translate(${translateX}px, ${translateY}px) scale(${zoomScale})`);
+    
+    return `translate(${translateX}px, ${translateY}px) scale(${zoomScale})`;
+  }, [activeIndex, path.length, zoomEnabled]);
+
   if (loading)
     return <div className="text-sm text-slate-600">Loading board…</div>;
   if (err) return <div className="text-sm text-red-600">Error: {err}</div>;
@@ -456,38 +547,57 @@ export default function Board() {
   const pending = student?.pendingCompletion || null;
 
   return (
-    <div className="relative mx-auto flex items-start gap-6">
+    <div className="relative flex items-start gap-8 max-w-[1600px] mx-auto">
       {toast && (
         <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow">
           {toast}
         </div>
       )}
 
-      {/* BOARD (left) */}
-      <div className="relative bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 w-[100%] h-[900px] border-[12px] border-slate-700 rounded-[36px] shadow-[0_28px_80px_rgba(15,23,42,0.9)] overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 rounded-[28px] shadow-[inset_0_0_50px_rgba(15,23,42,0.35)]" />
-        {/* Corners */}
-        <div className="absolute top-0 left-0 w-[120px] h-[120px] border border-slate-400 bg-gradient-to-b from-slate-100 to-slate-50 flex items-center justify-center text-center px-2 z-20">
-          <div className="text-[11px] leading-tight text-slate-800">
-            <div className="font-black text-lg mb-1 tracking-tight">
-              AI
-              <br />
-              VIOLATION
+      {/* BOARD CONTAINER with viewport transform */}
+      <div className="relative w-[900px] h-[900px] overflow-visible shrink-0">
+        {/* Floating Zoom Toggle Button - top right inside tile area */}
+        <button
+          onClick={() => setZoomEnabled(!zoomEnabled)}
+          className={`absolute top-[180px] right-[180px] z-50 rounded-lg px-4 py-2 font-semibold shadow-lg transition-all hover:scale-105 ${
+            zoomEnabled
+              ? 'bg-sky-600 text-white hover:bg-sky-700'
+              : 'bg-white text-slate-800 border-2 border-slate-300 hover:bg-slate-50'
+          }`}
+          title={zoomEnabled ? 'Click to zoom out' : 'Click to zoom in'}
+        >
+          {zoomEnabled ? '🔍 Zoomed In' : '🔍 Zoomed Out'}
+        </button>
+        
+        <div 
+          className="origin-top-left transition-transform duration-700 ease-out"
+          style={{ transform: viewportTransform }}
+        >
+          {/* BOARD (left) */}
+          <div className="relative bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 w-[900px] h-[900px] border-[12px] border-slate-700 rounded-[36px] shadow-[0_28px_80px_rgba(15,23,42,0.9)] overflow-visible">
+            <div className="pointer-events-none absolute inset-0 rounded-[28px] shadow-[inset_0_0_50px_rgba(15,23,42,0.35)]" />
+            {/* Corners */}
+            <div className="absolute top-0 left-0 w-[120px] h-[120px] border border-slate-400 bg-gradient-to-b from-slate-100 to-slate-50 flex items-center justify-center text-center px-2 z-20">
+              <div className="text-[11px] leading-tight text-slate-800">
+                <div className="font-black text-lg mb-1 tracking-tight">
+                  AI
+                  <br />
+                  VIOLATION
+                </div>
+                <div className="text-[10px] text-slate-600">
+                  (Go to "Crime
+                  <br />
+                  Committed")
+                </div>
+              </div>
             </div>
-            <div className="text-[10px] text-slate-600">
-              (Go to "Crime
-              <br />
-              Committed")
-            </div>
-          </div>
-        </div>
-        <div className="absolute top-0 right-0 w-[120px] h-[120px] border border-slate-400 bg-gradient-to-b from-slate-100 to-slate-50 flex items-center justify-center text-center px-2 z-20">
-          <div className="text-[11px] leading-tight text-slate-800">
-            <div className="font-black text-lg mb-1 tracking-tight">
-              HEALTH
-              <br />
-              ISSUE
-            </div>
+            <div className="absolute top-0 right-0 w-[120px] h-[120px] border border-slate-400 bg-gradient-to-b from-slate-100 to-slate-50 flex items-center justify-center text-center px-2 z-20">
+              <div className="text-[11px] leading-tight text-slate-800">
+                <div className="font-black text-lg mb-1 tracking-tight">
+                  HEALTH
+                  <br />
+                  ISSUE
+                </div>
             <div className="text-[10px] text-slate-600">
               (Free
               <br />
@@ -512,19 +622,36 @@ export default function Board() {
           <div className="mt-1 text-2xl animate-pulse">⬅</div>
         </div>
 
-        {/* Center title */}
-        <div className="absolute inset-28 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 flex items-center justify-center rounded-[32px] shadow-inner border border-slate-200/70">
-          <div className="-rotate-12 text-center drop-shadow-sm">
-            <div className="text-6xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
-              UB
+        {/* Center content */}
+        <div className="absolute inset-28 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 rounded-[32px] shadow-inner border border-slate-200/70 overflow-hidden">
+          {!student ? (
+            // Show logo when no student (game not started)
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="-rotate-12 text-center drop-shadow-sm">
+                <div className="text-6xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
+                  UB
+                </div>
+                <div className="mt-6 text-6xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
+                  TYCOON
+                </div>
+                <div className="mt-6 text-6xl font-black tracking-[0.25em] text-sky-900 uppercase flex justify-center">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Buffalo_Bulls_logo.svg/1280px-Buffalo_Bulls_logo.svg.png" alt="ub-logo" className="w-[25%]"/>
+                </div>
+              </div>
             </div>
-            <div className="mt-6 text-6xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
-              TYCOON
+          ) : (
+            // Show Victor on left, Chatbot on right when game started
+            <div className="w-full h-full grid grid-cols-2">
+              {/* Left half - Victor 3D */}
+              <div className="relative">
+                <CenterVictor />
+              </div>
+              {/* Right half - Chatbot */}
+              <div className="relative p-4">
+                <Chatbot />
+              </div>
             </div>
-            <div className="mt-6 text-6xl font-black tracking-[0.25em] text-sky-900 uppercase flex justify-center">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Buffalo_Bulls_logo.svg/1280px-Buffalo_Bulls_logo.svg.png" alt="ub-logo" className="w-[25%]"/>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Sides */}
@@ -573,9 +700,13 @@ export default function Board() {
           </div>
         </div>
       </div>
+      {/* Close the transform wrapper */}
+      </div>
+      {/* Close the viewport container */}
+      </div>
 
       {/* PANELS (right) */}
-      <aside className="w-[380px] shrink-0">
+      <aside className="flex-1 min-w-[450px] max-w-[600px]">
         <div className="sticky top-6 space-y-4">
           {/* Student Stats + Die Ready */}
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
@@ -927,8 +1058,6 @@ export default function Board() {
           </div>
         </div>
       )}
-      {/* Chatbot popup */}
-      <Chatbot />
     </div>
   );
 }

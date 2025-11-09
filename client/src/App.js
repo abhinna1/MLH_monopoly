@@ -76,16 +76,21 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/board"
-              element={
+          </Routes>
+        </main>
+        
+        <Routes>
+          <Route
+            path="/board"
+            element={
+              <main className="mx-auto max-w-[95%] px-4 py-6">
                 <ProtectedRoute>
                   <Board />
                 </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </main>
+              </main>
+            }
+          />
+        </Routes>
       </div>
     </Router>
   );
