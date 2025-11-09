@@ -514,11 +514,14 @@ export default function Board() {
         {/* Center title */}
         <div className="absolute inset-28 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 flex items-center justify-center rounded-[32px] shadow-inner border border-slate-200/70">
           <div className="-rotate-12 text-center drop-shadow-sm">
-            <div className="text-6xl font-black tracking-[0.25em] text-sky-900 uppercase">
-              ACADEMIC
+            <div className="text-6xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
+              UB
             </div>
-            <div className="mt-6 text-6xl font-black tracking-[0.25em] text-sky-900 uppercase">
-              MONOPOLY
+            <div className="mt-6 text-6xl font-black tracking-[0.25em] text-[#005bbb] uppercase">
+              TYCOON
+            </div>
+            <div className="mt-6 text-6xl font-black tracking-[0.25em] text-sky-900 uppercase flex justify-center">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Buffalo_Bulls_logo.svg/1280px-Buffalo_Bulls_logo.svg.png" alt="ub-logo" className="w-[25%]"/>
             </div>
           </div>
         </div>
@@ -687,8 +690,6 @@ export default function Board() {
                     )}
                   </div>
                 )}
-
-                
               </>
             )}
           </div>
@@ -836,8 +837,6 @@ export default function Board() {
               </div>
             )}
           </div>
-
-
         </div>
       </aside>
 
