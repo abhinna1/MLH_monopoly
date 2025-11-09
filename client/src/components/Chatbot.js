@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 
 // Chatbot — talks to server /api/chat which proxies to Gemini (AI Studio)
-export default function Chatbot({ position = "bottom-right" }) {
-  const [open, setOpen] = useState(false);
+export default function Chatbot({ position = "bottom-right", defaultOpen = false, showToggle = true, className = "" }) {
+  const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState([
     { id: 1, from: "bot", text: "Hi! I can help with the board or tasks. Ask me anything." },
   ]);
@@ -55,14 +55,40 @@ export default function Chatbot({ position = "bottom-right" }) {
       ? "left-6 bottom-6"
       : position === "top-right"
       ? "right-6 top-6"
+      : position === "inline"
+      ? ""
       : "right-6 bottom-6";
 
+  // Speech bubble style for inline mode
+  const speechBubbleStyle = position === "inline" ? {
+    position: "relative",
+  } : {};
+
+  const containerClasses = position === "inline" 
+    ? `w-full h-full ${className}` 
+    : `fixed z-50 ${containerPos} w-[320px]`;
+
   return (
-    <div className={`fixed z-50 ${containerPos} w-[320px]`} style={{ maxWidth: "90vw" }}>
+    <div className={containerClasses} style={{ maxWidth: position === "inline" ? "100%" : "90vw", ...speechBubbleStyle }}>
       {open && (
-        <div className="mb-2 rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden">
-          <div className="px-3 py-2 bg-sky-600 text-white font-semibold">Victor E. Bull</div>
-          <div ref={listRef} className="h-48 overflow-auto p-3 text-sm bg-white">
+        <div className={`rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden ${position === "inline" ? "h-full flex flex-col" : "mb-2"}`}>
+          {/* Speech bubble tail pointing to Victor (left side) */}
+          {position === "inline" && (
+            <div 
+              className="absolute left-0 top-1/3 w-0 h-0 -translate-x-full"
+              style={{
+                borderTop: "20px solid transparent",
+                borderBottom: "20px solid transparent",
+                borderRight: "20px solid #0284c7",
+              }}
+            />
+          )}
+          
+          <div className="px-3 py-2 bg-sky-600 text-white font-semibold flex items-center gap-2">
+            <span>💬</span>
+            <span>Victor E. Bull</span>
+          </div>
+          <div ref={listRef} className={`overflow-auto p-3 text-sm bg-white ${position === "inline" ? "flex-1" : "h-48"}`}>
             {messages.map((m) => (
               <div key={m.id} className={`mb-2 flex ${m.from === "bot" ? "justify-start" : "justify-end"}`}>
                 <div className={`max-w-[80%] rounded-lg px-3 py-2 ${m.from === "bot" ? "bg-slate-100 text-slate-800" : "bg-sky-600 text-white"}`}>
@@ -92,15 +118,17 @@ export default function Chatbot({ position = "bottom-right" }) {
         </div>
       )}
 
-      <div className="flex items-center justify-end">
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="rounded-full bg-sky-600 text-white w-12 h-12 flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
-          title="Open chat"
-        >
-          💬
-        </button>
-      </div>
+      {showToggle && (
+        <div className="flex items-center justify-end">
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="rounded-full bg-sky-600 text-white w-12 h-12 flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
+            title="Open chat"
+          >
+            💬
+          </button>
+        </div>
+      )}
     </div>
   );
 }

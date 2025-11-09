@@ -1,5 +1,5 @@
 // components/CenterVictor.js
-import React, { useRef } from "react";
+import React, { useRef, useState, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations, OrbitControls } from "@react-three/drei";
 
@@ -41,43 +41,85 @@ function VictorModel() {
   );
 }
 
-export default function CenterVictor() {
+function LoadingFallback() {
   return (
-    <div className="w-full h-full">
-      <Canvas
-        camera={{ position: [0, 0.5, 4], fov: 50 }}
-        style={{ background: "transparent" }}
-      >
-        <ambientLight intensity={1.5} />
-        {/* 8 directional lights surrounding Victor */}
-        <directionalLight position={[5, 5, 5]} intensity={2.5} />
-        <directionalLight position={[-5, 5, 5]} intensity={2.5} />
-        <directionalLight position={[5, 5, -5]} intensity={2.5} />
-        <directionalLight position={[-5, 5, -5]} intensity={2.5} />
-        <directionalLight position={[0, 5, 5]} intensity={2.5} />
-        <directionalLight position={[0, 5, -5]} intensity={2.5} />
-        <directionalLight position={[5, 5, 0]} intensity={2.5} />
-        <directionalLight position={[-5, 5, 0]} intensity={2.5} />
-        <pointLight position={[0, 5, 0]} intensity={2.0} />
-        <pointLight position={[5, 2, 5]} intensity={1.5} />
-        <pointLight position={[-5, 2, 5]} intensity={1.5} />
-        <spotLight 
-          position={[0, 10, 0]} 
-          angle={0.4} 
-          penumbra={0.5} 
-          intensity={2.5}
-          castShadow
-        />
-        
-        <VictorModel />
-        
-        <OrbitControls 
-          enableZoom={false}
-          enablePan={false}
-          minPolarAngle={Math.PI / 4}
-          maxPolarAngle={Math.PI / 2}
-        />
-      </Canvas>
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-4xl mb-2">⚡</div>
+        <div className="text-sm text-slate-600">Loading Victor...</div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorFallback() {
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-6xl mb-2">🐂</div>
+        <div className="text-sm text-slate-600">Victor E. Bull</div>
+      </div>
+    </div>
+  );
+}
+
+export default function CenterVictor() {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return <ErrorFallback />;
+  }
+
+  return (
+    <div className="w-full h-full min-h-[400px]" style={{ minHeight: "400px" }}>
+      <Suspense fallback={<LoadingFallback />}>
+        <Canvas
+          camera={{ position: [0, 0.5, 4], fov: 50 }}
+          style={{ width: "100%", height: "100%", background: "transparent" }}
+          gl={{ 
+            antialias: true, 
+            alpha: true,
+            powerPreference: "high-performance"
+          }}
+          onCreated={({ gl }) => {
+            gl.setClearColor(0x000000, 0);
+          }}
+          onError={(error) => {
+            console.error("Canvas error:", error);
+            setHasError(true);
+          }}
+        >
+          <ambientLight intensity={1.5} />
+          {/* 8 directional lights surrounding Victor */}
+          <directionalLight position={[5, 5, 5]} intensity={2.5} />
+          <directionalLight position={[-5, 5, 5]} intensity={2.5} />
+          <directionalLight position={[5, 5, -5]} intensity={2.5} />
+          <directionalLight position={[-5, 5, -5]} intensity={2.5} />
+          <directionalLight position={[0, 5, 5]} intensity={2.5} />
+          <directionalLight position={[0, 5, -5]} intensity={2.5} />
+          <directionalLight position={[5, 5, 0]} intensity={2.5} />
+          <directionalLight position={[-5, 5, 0]} intensity={2.5} />
+          <pointLight position={[0, 5, 0]} intensity={2.0} />
+          <pointLight position={[5, 2, 5]} intensity={1.5} />
+          <pointLight position={[-5, 2, 5]} intensity={1.5} />
+          <spotLight 
+            position={[0, 10, 0]} 
+            angle={0.4} 
+            penumbra={0.5} 
+            intensity={2.5}
+            castShadow
+          />
+          
+          <VictorModel />
+          
+          <OrbitControls 
+            enableZoom={false}
+            enablePan={false}
+            minPolarAngle={Math.PI / 4}
+            maxPolarAngle={Math.PI / 2}
+          />
+        </Canvas>
+      </Suspense>
     </div>
   );
 }
